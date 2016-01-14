@@ -26,27 +26,32 @@ int main(){
 	al_set_window_position(display, 200, 50);
 	al_set_window_title(display, "Hungry Run");
 
-	const float FPS = 90.0;
+	const float FPS = 60.0;
 	bool done = false;
 	bool starter = true;
 	bool instruction = false;
 	bool game = false;
 	bool jump = false;
+	bool collision = false;
+	bool motion = false;
 	int choiceY = 330;
-	float pejzazX = 0;
-	float pejzaz2X = pejzazX + 800;
-	float playerX = 10;
-	float playerY = 545;
-	float moveSpeed = 5;
+	int pejzazX = 0;
+	int pejzaz2X = pejzazX + 800;
+	int playerX = 10;
+	int playerY = 480;
+	int moveSpeed = 5;
 	int score = 0;
-	const float gravity = 1;
-	float jumpSpeed = 15;
-	float velx,vely;
-	velx = vely = 0;
+	const int gravity = 1;
+	int jumpSpeed = 12;
+	int velx,vely;
 	float position = 0;
+	int obstacle1X = 790;
+	velx = vely = 0;
 	position = pejzazX;
-	int temp = 0;
-	
+	const int maxFrame = 2;
+	int curFrame = 0;
+	int frameCount = 0;
+	int frameDelay = 8;
 
 	if (!display){
 		al_show_native_message_box(NULL, "Error", "Display", "Can not initialize display", NULL, NULL);
@@ -66,11 +71,20 @@ int main(){
 	ALLEGRO_BITMAP *instrukcja = al_load_bitmap("Instrukcja.png");
 	ALLEGRO_BITMAP *pejzaz = al_load_bitmap("Pejzaz.png");
 	ALLEGRO_BITMAP *pejzaz2 = al_load_bitmap("Pejzaz2.png");
+	ALLEGRO_BITMAP *przeszkoda = al_load_bitmap("przeszkoda.png");
+	ALLEGRO_BITMAP *animation[maxFrame];
+	animation[0] = al_load_bitmap("Postac.png");
+	animation[1] = al_load_bitmap("Postac2.png");
 	ALLEGRO_TIMER *timer = al_create_timer(1.0 / FPS);
 	ALLEGRO_EVENT_QUEUE *event_queue = al_create_event_queue();
+
+	for (int i = 0; i < maxFrame; i++)
+		al_convert_mask_to_alpha(animation[i], al_map_rgb(222, 122, 180));
+
 	al_register_event_source(event_queue, al_get_keyboard_event_source());
 	al_register_event_source(event_queue, al_get_timer_event_source(timer));
 	al_register_event_source(event_queue, al_get_display_event_source(display));
+
 
 	if (!font){
 		al_show_native_message_box(NULL, "ERROR", "FONT", "Can not initialize font", NULL, ALLEGRO_MESSAGEBOX_ERROR);
@@ -120,8 +134,8 @@ int main(){
 		if (events.type == ALLEGRO_EVENT_TIMER){
 			al_get_keyboard_state(&keyState);
 			if (al_key_down(&keyState, ALLEGRO_KEY_UP) && jump){
-				velx = moveSpeed;
 				vely = -jumpSpeed;
+				playerY = 480;
 				jump = false;
 			}
 			else if (al_key_down(&keyState, ALLEGRO_KEY_ENTER)){
@@ -137,18 +151,24 @@ int main(){
 				if (choiceY == 330){
 					starter = false;
 					game = true;
+					motion = true;
 				}
 			}
 			else
 				velx = 0;
-			if (!jump)
+				
+			if (!jump){
 				vely += gravity;
+			}
 			else
-			vely = 0;
+				vely = 0;
+			
+
 			playerX += velx;
 			playerY += vely;
 
-			jump = (playerY>= 545);
+			jump = (playerY>= 480);
+
 		}
 
 		if (starter){
@@ -162,31 +182,88 @@ int main(){
 			al_flip_display();
 			al_clear_to_color(al_map_rgb(0, 0, 0));
 		}
+
+		if (collision){
+			al_draw_textf(font, al_map_rgb(255, 255, 255), ScreenHeigth/1.5, ScreenWeidth / 2.5, ALLEGRO_ALIGN_CENTRE, "GAME OVER");
+			al_flip_display();
+			al_clear_to_color(al_map_rgb(0, 0, 0));
+			al_rest(1.0);
+			score = 0;
+			position = 0;
+			moveSpeed = 5;
+			playerX = 10;
+			playerY = 480;
+			pejzazX = 0;
+			pejzaz2X = pejzazX + 800;
+			obstacle1X = 790;
+			game = false;
+			collision = false;
+			starter = true;
+		}
+
 		if (game){
+
 			pejzazX -= moveSpeed;
 			pejzaz2X -= moveSpeed;
+			obstacle1X -= moveSpeed;
+
 			if (pejzazX <= -800){
 				pejzazX = 0;
 				pejzaz2X = pejzazX + 800;
 			}
 
+			if (obstacle1X <= 0){
+				obstacle1X = 790;
+			}
+
+			if (playerX == obstacle1X && playerY==480){
+				al_rest(1.0);
+				jump = false;
+				collision = true;
+			}
+
+			if (score <= 30){
+				moveSpeed = 5;
+			}
+			else if(score >30  && score<=80){
+				moveSpeed = 7;
+			}
+			else if(score>150 && score<=300){
+				moveSpeed = 9;
+			}
+			else{
+				moveSpeed = 11;
+			}
+
 			position += moveSpeed;
 			score = (int) (position + moveSpeed)/100;
+
 			al_draw_bitmap(pejzaz, pejzazX, 0, NULL);
 			al_draw_bitmap(pejzaz2, pejzaz2X, 0, NULL);
 			al_draw_textf(font, al_map_rgb(255, 255, 255), ScreenHeigth, ScreenWeidth/50, ALLEGRO_ALIGN_LEFT, "SCORE:%d", score);
-			al_draw_filled_rectangle(playerX, playerY, playerX+20, playerY+20, al_map_rgb(245, 100, 145));
+			if (++frameCount >= frameDelay){
+				if (++curFrame >= maxFrame)
+					curFrame = 0;
+
+				frameCount = 0;
+			}
+			al_draw_bitmap(animation[curFrame], 10, playerY, 0);
+			al_draw_bitmap(przeszkoda, obstacle1X, 505, 0);
 			al_flip_display();
 			al_clear_to_color(al_map_rgb(0, 0, 0));
+
 		}
 	}
 
+	for (int i = 0; i < maxFrame; i++)
+		al_destroy_bitmap(animation[i]);
 
 	al_destroy_display(display);
 	al_destroy_bitmap(start);
 	al_destroy_bitmap(instrukcja);
 	al_destroy_bitmap(pejzaz);
 	al_destroy_bitmap(pejzaz2);
+	al_destroy_bitmap(przeszkoda);
 	al_destroy_timer(timer);
 	al_destroy_event_queue(event_queue);
 	return 0;
